@@ -33,26 +33,27 @@ estimated = [146.80285200929248, 107.86776971915364, 89.55245098850234, 79.09906
 
 lamb_avg = []
 
-for nei in np.arange(1, 31):  # np.arange(5,26):
+for nei in np.arange(20, 21):  # np.arange(5,26):
     print("# of neighbors: {}".format(nei))
     results = []
     probs = []
     lamb_avg = []
-    for i in range(1000):
+    for i in range(1):
         simulation = Simulation(nei)
         simulation.prepare_simulation()
-        joining, times = simulation.execute()
+        joining = simulation.execute()
         results.append(joining)
         #input = [len(list(group)) for key, group in groupby([np.floor(d / 30) for d in times])]
         #lamb_avg.append(np.average(input))
 
 
     st = mean_confidence_interval(results, 0.95)
-    avgs.append(st[0])
-    intervals.append(st[0] - st[1])
+    print(st)
+    # avgs.append(st[0])
+    # intervals.append(st[0] - st[1])
 
 
-plt.bar(np.arange(1, 31), avgs, yerr=intervals)
-plt.plot(np.arange(1, 31), estimated)
-
-plt.show()
+# plt.bar(np.arange(1, 31), avgs, yerr=intervals)
+# plt.plot(np.arange(1, 31), estimated)
+#
+# plt.show()

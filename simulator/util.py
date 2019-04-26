@@ -16,9 +16,9 @@ sh.setFormatter(formatter)
 logging.getLogger().addHandler(sh)
 
 
-def print_log(text, header=True):
+def print_log(asn, text, header=False):
     if header:
         logging.info("********************* {} *********************".format(text))
     else:
-        logging.info("{}".format(text))
+        logging.info("({}) {}".format(asn,text))
     logging.info("")

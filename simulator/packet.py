@@ -6,7 +6,7 @@
 
 class Packet:
 
-    def __init__(self, node, payload, is_eb = False):
+    def __init__(self, node, payload, is_eb = False, is_6p = False):
         self.node = node
         self.payload = payload
         self.attempts_left = 3
@@ -14,6 +14,8 @@ class Packet:
         self.received_asn = 0
         self.is_forwarding = False
         self.is_eb = is_eb
+        self.destination = None
+        self.is_6p = is_6p
 
     def __str__(self):
         return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])

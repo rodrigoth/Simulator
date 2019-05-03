@@ -3,11 +3,12 @@
 # =============================================================================
 # Created By  : Rodrigo Teles Hermeto
 
-
+import numpy as np
 from simulator.node import Node, Status6PTypes
 from simulator.schedule import Slotframe
 from simulator.util import print_log
 from random import randint
+from itertools import groupby
 
 
 class Simulation:
@@ -84,6 +85,16 @@ class Simulation:
     def is_collision(self, transmitters):
         return len(transmitters) > 1
 
+    def check_6P_timeout(self,asn):
+        for node in self.nodes:
+            if node.status == Status6PTypes.SENT_REQUEST:
+                if node.asn_request_timeout < asn:
+                    node.status = Status6PTypes.IDLE
+                    self.get_joining_node().enqueue_6p(node.parent, "6P request")
+                    print_log(asn,"Negotiation timeout - {}".format(node.id))
+                    print_log(asn, "6P packet enqueued - {}".format(node.id))
+
+
     def execute(self):
         current_cell_index = 0
         asn = 1
@@ -92,6 +103,8 @@ class Simulation:
             current_cell = self.slotframe.cells[current_cell_index]
             current_frequency = self.compute_frequency(asn, current_cell.channel)
             self.update_nodes_active_frequency(current_frequency)
+
+            self.check_6P_timeout(asn)
 
             if current_cell.shared:
                 transmitters = self.get_all_transmitters()
@@ -107,21 +120,27 @@ class Simulation:
                         if packet.is_eb:
                             if not self.get_joining_node().is_synchronized and \
                                     current_frequency == self.get_joining_node().active_frequency:
-                                print_log(asn, "Synchronized")
+                                #print_log(asn, "Synchronized")
                                 self.get_joining_node().active_frequency = current_frequency
                                 self.get_joining_node().is_synchronized = True
                                 parent = transmitters[0]
                                 self.get_joining_node().rank = parent.rank + self.RANK_INCREASE
                                 self.get_joining_node().parent = parent
                                 self.get_joining_node().enqueue_6p(parent, "6P request")
+                                print_log(asn, "6P packet enqueued - {}".format(self.get_joining_node().id))
+
                         else:
                             if transmitter.status == Status6PTypes.IDLE:
 
                                 transmitter.status = Status6PTypes.SENT_REQUEST
+                                transmitter.asn_request = asn
+                                transmitter.asn_request_timeout = asn + 1500
 
-                                transmitter.parent.enqueue_6p(transmitters[0], '6P response')
-                                transmitter.parent.requester = transmitter
-                                transmitter.parent.status = Status6PTypes.REQUEST_RECEIVED
+                                if transmitter.parent.status == Status6PTypes.IDLE:
+                                    print_log(asn, "{} received 6P request".format(transmitter.parent.id))
+                                    transmitter.parent.enqueue_6p(transmitters[0], '6P response')
+                                    transmitter.parent.requester = transmitter
+                                    transmitter.parent.status = Status6PTypes.REQUEST_RECEIVED
 
                             else:
                                 if transmitter.status == Status6PTypes.REQUEST_RECEIVED:
@@ -138,3 +157,43 @@ class Simulation:
                 current_cell_index += 1
 
             asn += 1
+
+    def compute_eb_frequency_by_period(self, eb_period, sample_length=1000,):
+        current_cell_index = 0
+        asn = 1
+        times = []
+
+        while True and len(times) <= sample_length:
+            current_cell = self.slotframe.cells[current_cell_index]
+            current_frequency = self.compute_frequency(asn, current_cell.channel)
+            self.update_nodes_active_frequency(current_frequency)
+
+            if current_cell.shared:
+                transmitters = self.get_all_transmitters()
+
+                if self.is_collision(transmitters):
+                    for node in transmitters:
+                        node.remove_eb_packet()
+                        times.append(asn*0.015)
+                else:
+                    if transmitters:
+                        transmitter = transmitters[0]
+                        packet = transmitters[0].queue[0]
+                        if packet.is_eb:
+                            if not self.get_joining_node().is_synchronized and \
+                                    current_frequency == self.get_joining_node().active_frequency:
+                                # print_log(asn, "Synchronized")
+                                self.get_joining_node().active_frequency = current_frequency
+                                self.get_joining_node().is_synchronized = True
+                        times.append(asn*0.015)
+                        transmitter.remove_transmitted_packet()
+
+            self.check_eb_queuing(asn)
+
+            if current_cell.is_the_last_cell():
+                current_cell_index = 0
+            else:
+                current_cell_index += 1
+
+            asn += 1
+        return [len(list(group)) for key, group in groupby([np.floor(d / eb_period) for d in times])]

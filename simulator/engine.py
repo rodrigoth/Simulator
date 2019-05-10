@@ -24,7 +24,6 @@ class Simulation:
         self.number_of_nodes = number_of_nodes
         self.nodes = [sink]
         self.slotframe = Slotframe()
-        self.times = []
 
     def build_topology(self):
         sink = self.nodes[0]
@@ -98,6 +97,7 @@ class Simulation:
     def execute(self):
         current_cell_index = 0
         asn = 1
+        sync_time = 0
 
         while True:
             current_cell = self.slotframe.cells[current_cell_index]
@@ -127,6 +127,7 @@ class Simulation:
                                 self.get_joining_node().rank = parent.rank + self.RANK_INCREASE
                                 self.get_joining_node().parent = parent
                                 self.get_joining_node().enqueue_6p(parent, "6P request")
+                                sync_time = float(asn * 15) / 1000
                                 print_log(asn, "6P packet enqueued - {}".format(self.get_joining_node().id))
 
                         else:
@@ -146,7 +147,8 @@ class Simulation:
                                 if transmitter.status == Status6PTypes.REQUEST_RECEIVED:
                                     print_log(asn, "Negotiation successful")
                                     transmitter.remove_transmitted_packet()
-                                    return float(asn * 15) / 1000
+                                    negotiation_time = float(asn * 15) / 1000 - sync_time
+                                    return sync_time, negotiation_time
                         transmitter.remove_transmitted_packet()
 
             self.check_eb_queuing(asn)

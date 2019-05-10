@@ -10,7 +10,6 @@ import numpy as np
 import scipy.stats
 import matplotlib.pyplot as plt
 import seaborn as sns
-from itertools import groupby
 
 sns.set_style("whitegrid", {'axes.grid': False})
 
@@ -46,31 +45,50 @@ estimated = [113.07846854492246, 95.46493372986203, 86.06864618167405, 80.865381
              372.5603683635791, 429.2456900670159, 492.89556359234905, 573.6963831064331, 662.679122675888]
 
 
+avgs_sync_time = []
+intervals_sync = []
+avgs_neg_time = []
+intervals_neg = []
 
-
-lamb_avg = []
-
-for nei in np.arange(30, 31):  # np.arange(5,26):
+for nei in np.arange(1, 31):  # np.arange(5,26):
     print("# of neighbors: {}".format(nei))
-    results = []
+    sync_lst = []
+    negotiation_lst = []
     probs = []
     for i in range(1000):
         simulation = Simulation(nei)
         simulation.prepare_simulation()
         #times = simulation.compute_eb_frequency_by_period(eb_period=15,sample_length=10000)
         #lamb_avg.append(np.average(times[:-1]))
-        joining = simulation.execute()
-        results.append(joining)
+        sync_time, negotiation_time = simulation.execute()
+
+        sync_lst.append(sync_time)
+        negotiation_lst.append(negotiation_time)
 
 
+    st = mean_confidence_interval(sync_lst)
+    avgs_sync_time.append(st[0])
+    intervals_sync.append(st[0] - st[1])
 
-    st = mean_confidence_interval(results, 0.95)
-    print(st)
-    avgs.append(st[0])
-    intervals.append(st[0] - st[1])
+    st = mean_confidence_interval(negotiation_lst)
+    avgs_neg_time.append(st[0])
+    intervals_neg.append(st[0] - st[1])
 
 
-plt.bar(np.arange(1, 31), avgs, yerr=intervals)
-plt.plot(np.arange(1, 31), estimated)
+fig = plt.figure(1)
+ax = fig.add_subplot(111)
+
+
+ax.tick_params(axis='both', which='major', labelsize=12)
+ax.tick_params(axis='both', which='minor', labelsize=12)
+
+p1 = plt.bar(np.arange(1, 31), avgs_sync_time, yerr=intervals_sync)
+p2 = plt.bar(np.arange(1, 31), avgs_neg_time, bottom=avgs_sync_time, yerr=intervals_neg)
+plt.ylabel("Joining time (s)", fontsize='14')
+plt.xlabel("Number of neighbors", fontsize='14')
+plt.ylim([0,1200])
+p3 = plt.plot(np.arange(1, 31), estimated, linestyle=":")
+plt.legend((p1[0], p2[0], p3[0]), ('Synchronization', 'Negotiation', "Model estimate"),fontsize='14')
+
 
 plt.show()

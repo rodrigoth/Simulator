@@ -6,12 +6,13 @@
 SLOTFRAME_LENGTH = 101
 
 class Cell:
-    def __init__(self, timeslot, channel, is_shared_cell):
+    def __init__(self, timeslot, channel, is_shared_cell, is_eb_cell):
         self.timeslot = timeslot
         self.channel = channel
         self.sender = None
         self.used = False
         self.shared = is_shared_cell
+        self.eb_cell = is_eb_cell
 
     def is_the_last_cell(self):
         if self.timeslot == SLOTFRAME_LENGTH - 1:
@@ -26,6 +27,7 @@ class Slotframe:
     def __init__(self):
         self.cells = []
 
-        self.cells.append(Cell(0, 0, True))  # shared cell
-        for i in range(1, SLOTFRAME_LENGTH):
-            self.cells.append(Cell(i, 0, False))
+        self.cells.append(Cell(0, 0, True, False))  # shared cell
+        self.cells.append(Cell(1, 0, False, True))
+        for i in range(2, SLOTFRAME_LENGTH):
+            self.cells.append(Cell(i, 0, False, False))

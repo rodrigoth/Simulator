@@ -4,7 +4,7 @@
 # Created By  : Rodrigo Teles Hermeto
 from simulator.packet import Packet
 from random import randint
-from simulator.util import print_log
+from simulator.util import print_log, rand_uuid
 
 class Status6PTypes:
     [IDLE, SENT_REQUEST, REQUEST_RECEIVED, SENT_RESPONSE] = range(4)
@@ -23,6 +23,7 @@ class Node:
         self.requester = None
         self.asn_request = None
         self.asn_request_timeout = None
+        self.uuid = rand_uuid()
 
     def get_next_packet(self):
         if len(self.queue) > 0:
@@ -70,21 +71,20 @@ class Node:
         self.queue.pop(0)
 
     def failed_6p_transmissions(self,asn):
-        if len(self.queue) > 0 and self.queue[0].is_6p:
-            packet_6p = self.queue[0]
-            if packet_6p.attempts_left >= 1:
-                packet_6p.attempts_left -= 1
-                packet_6p.backoff_counter = randint(1,3)
-            else:
-                print_log(asn,"6P packet dropped - {}".format(self.id))
-                self.queue.pop(0)
-                self.status = Status6PTypes.IDLE
+        packet_6p = self.next_6p_packet()
+        if packet_6p.attempts_left >= 1:
+            packet_6p.attempts_left -= 1
+            packet_6p.backoff_counter = randint(1,3)
+        else:
+            print_log(asn,"6P packet dropped - {}".format(self.id))
+            self.queue.remove(packet_6p)
+            self.status = Status6PTypes.IDLE
 
-                if not self.requester:
-                    self.enqueue_6p(self.parent, "6P request")
-                    print_log(asn, "6P packet enqueued - {}".format(self.id))
+            if not self.requester:
+                self.enqueue_6p(self.parent, "6P request")
+                print_log(asn, "6P packet enqueued - {}".format(self.id))
 
-        print_log(asn,"Failed negotiation ({})".format(self.id))
+            #print_log(asn,"Failed negotiation ({})".format(self.id))
 
     def __str__(self):
         return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])

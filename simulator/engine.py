@@ -13,7 +13,9 @@ from collections import defaultdict
 
 class Simulation:
     FIRST_EB_RANDOM_WINDOW = 500
+    FIRST_DIO_RANDOM_WINDOW = 1000
     EB_PERIOD = 1000  # in ASN
+    DIO_PERIOD = 1000
     JITTER = 200  # in ASN
     RANK_INCREASE = 256
 
@@ -41,34 +43,46 @@ class Simulation:
 
             self.nodes.append(new_node)
 
-        joining_node = Node("Joining node")
+        joining_node = Node("Joining node",is_infrastructure=False)
         joining_node.is_synchronized = False
         joining_node.active_frequency = randint(11, 26)
-        print("Joining node frequency")
         self.nodes.append(joining_node)
 
     def compute_frequency(self, asn, channel_offset):
         return 11 + (asn + channel_offset) % 16
 
-    def check_eb_queuing(self, asn):
+    def check_queuing(self, asn):
         for node in self.nodes:
             if node.is_synchronized:
                 # first queuing
-                if not node.asn_next_enqueue:
-                    node.asn_next_enqueue = asn + randint(1, self.FIRST_EB_RANDOM_WINDOW)
+                if not node.asn_next_eb_enqueue:
+                    node.asn_next_eb_enqueue = asn + randint(1, self.FIRST_EB_RANDOM_WINDOW)
+                    node.asn_next_dio_enqueue = asn + randint(1, self.EB_PERIOD)
                 else:
-                    if asn == node.asn_next_enqueue:
+                    if asn == node.asn_next_eb_enqueue:
                         node.enqueue_eb()
-                        node.asn_next_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,
+                        node.asn_next_eb_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,self.EB_PERIOD + self.JITTER)
+                    if asn == node.asn_next_dio_enqueue:
+                        node.enqueue_dio()
+                        node.asn_next_dio_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,
                                                               self.EB_PERIOD + self.JITTER)
 
     def get_all_eb_transmitters(self,asn):
         transmitters = []
         for node in self.nodes:
             if node.is_synchronized:
-                packet = node.get_next_packet()
-                if packet and packet.is_eb:
+                packet = node.next_eb_packet()
+                if packet:
                     node.active_frequency = (abs(hash(node.uuid)) + asn) % 16 + 11
+                    transmitters.append(node)
+        return transmitters
+
+    def get_all_dio_transmitters(self):
+        transmitters = []
+        for node in self.nodes:
+            if node.is_synchronized and node.is_infrastructure:
+                packet = node.next_dio_packet()
+                if packet:
                     transmitters.append(node)
         return transmitters
 
@@ -77,7 +91,7 @@ class Simulation:
         for node in self.nodes:
             if node.is_synchronized:
                 packet = node.get_next_packet()
-                if packet and packet.is_6p:
+                if packet:
                     transmitters.append(node)
         return transmitters
 
@@ -87,7 +101,7 @@ class Simulation:
     def update_nodes_active_frequency(self, new_frequency):
         for node in self.nodes:
             if node.is_synchronized:
-                node.current_frequency = new_frequency
+                node.active_frequency = new_frequency
 
     def get_joining_node(self):
         return self.nodes[-1]
@@ -134,31 +148,38 @@ class Simulation:
 
             if current_cell.shared:
                 all_6p_transmitters = self.get_all_6p_transmitters()
-                if all_6p_transmitters:
-                    if self.is_collision(all_6p_transmitters):
-                        [node.failed_6p_transmissions(asn) for node in all_6p_transmitters]
+                all_dio_transmitters = [x for x in self.get_all_dio_transmitters() if x not in all_6p_transmitters]
+
+                all_transmitters = all_6p_transmitters + all_dio_transmitters
+
+                if all_transmitters:
+                    if self.is_collision(all_transmitters):
+                        [t.remove_dio_packet() for t in all_dio_transmitters]
+                        [t.failed_6p_transmissions(asn) for t in all_6p_transmitters]
                     else:
-                        transmitter = all_6p_transmitters[0]
+                        transmitter = all_transmitters[0]
+                        pkt = transmitter.queue[0]
+                        if pkt.is_6p:
+                            if transmitter.status == Status6PTypes.IDLE:
+                                transmitter.status = Status6PTypes.SENT_REQUEST
+                                transmitter.asn_request = asn
+                                transmitter.asn_request_timeout = asn + 1500
 
-                        if transmitter.status == Status6PTypes.IDLE:
-                            transmitter.status = Status6PTypes.SENT_REQUEST
-                            transmitter.asn_request = asn
-                            transmitter.asn_request_timeout = asn + 1500
+                                if transmitter.parent.status == Status6PTypes.IDLE:
+                                    print_log(asn, "{} received 6P request".format(transmitter.parent.id))
+                                    transmitter.parent.enqueue_6p(transmitter, '6P response')
+                                    transmitter.parent.requester = transmitter.id
+                                    transmitter.parent.status = Status6PTypes.REQUEST_RECEIVED
 
-                            if transmitter.parent.status == Status6PTypes.IDLE:
-                                print_log(asn, "{} received 6P request".format(transmitter.parent.id))
-                                transmitter.parent.enqueue_6p(transmitter, '6P response')
-                                transmitter.parent.requester = transmitter.id
-                                transmitter.parent.status = Status6PTypes.REQUEST_RECEIVED
-
+                            else:
+                                if transmitter.status == Status6PTypes.REQUEST_RECEIVED:
+                                    print_log(asn, "Negotiation successful")
+                                    negotiation_time = float(asn * 15) / 1000 - sync_time
+                                    return sync_time, negotiation_time
                         else:
-                            if transmitter.status == Status6PTypes.REQUEST_RECEIVED:
-                                print_log(asn, "Negotiation successful")
-                                transmitter.remove_transmitted_packet()
-                                negotiation_time = float(asn * 15) / 1000 - sync_time
-                                return sync_time, negotiation_time
+                            print_log(asn, "DIO transmitted - {}".format(transmitter.id))
 
-                    transmitter.remove_transmitted_packet()
+                        transmitter.queue.remove(pkt)
 
             if current_cell.eb_cell:
                 all_eb_transmitters = self.get_all_eb_transmitters(asn)
@@ -181,7 +202,7 @@ class Simulation:
 
                     [eb_transmitter.remove_eb_packet() for eb_transmitter in all_eb_transmitters]
 
-            self.check_eb_queuing(asn)
+            self.check_queuing(asn)
 
             if current_cell.is_the_last_cell():
                 current_cell_index = 0

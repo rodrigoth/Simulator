@@ -12,10 +12,11 @@ class Status6PTypes:
 
 class Node:
 
-    def __init__(self, id):
+    def __init__(self, id, is_infrastructure=True):
         self.id = id
         self.queue = []
-        self.asn_next_enqueue = 0
+        self.asn_next_eb_enqueue = 0
+        self.asn_next_dio_enqueue = 0
         self.is_synchronized = True
         self.active_frequency = 0
         self.parent = None
@@ -24,6 +25,7 @@ class Node:
         self.asn_request = None
         self.asn_request_timeout = None
         self.uuid = rand_uuid()
+        self.is_infrastructure = is_infrastructure
 
     def get_next_packet(self):
         if len(self.queue) > 0:
@@ -34,8 +36,6 @@ class Node:
                     pkt.backoff_counter -= 1
                 else:
                     return pkt
-
-            return self.next_eb_packet()
         return None
 
     def next_6p_packet(self):
@@ -51,9 +51,20 @@ class Node:
                 return pkt
         return None
 
+    def next_dio_packet(self):
+        for pkt in self.queue:
+            if pkt.is_dio:
+                return pkt
+        return None
+
     def enqueue_eb(self):
         packet = Packet(self.id, "", priority=0, is_eb=True)
         self.queue.append(packet)
+
+    def enqueue_dio(self):
+        if self.is_infrastructure:
+            packet = Packet(self.id, "", priority=0, is_dio=True)
+            self.queue.append(packet)
 
     def enqueue_6p(self, destination,payload):
         packet = Packet(self.id,payload, priority=1, is_6p=True)
@@ -67,12 +78,20 @@ class Node:
                 return True
         return False
 
+    def remove_dio_packet(self):
+        for pkt in self.queue:
+            if pkt.is_dio:
+                self.queue.remove(pkt)
+                return True
+        return False
+
     def remove_transmitted_packet(self):
         self.queue.pop(0)
 
     def failed_6p_transmissions(self,asn):
         packet_6p = self.next_6p_packet()
         if packet_6p.attempts_left >= 1:
+            print_log(asn, "6P packet collided - {}".format(self.id))
             packet_6p.attempts_left -= 1
             packet_6p.backoff_counter = randint(1,3)
         else:

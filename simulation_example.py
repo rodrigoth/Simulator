@@ -37,7 +37,7 @@ intervals_sync = []
 avgs_neg_time = []
 intervals_neg = []
 
-for nei in np.arange(10, 11):  # np.arange(5,26):
+for nei in np.arange(30, 31):  # np.arange(5,26):
     print("# of neighbors: {}".format(nei))
     sync_lst = []
     negotiation_lst = []
@@ -51,6 +51,8 @@ for nei in np.arange(10, 11):  # np.arange(5,26):
         sync_time, negotiation_time = simulation.execute()
         sync_lst.append(sync_time)
         negotiation_lst.append(negotiation_time)
+        print(sync_time,negotiation_time)
+        print(np.average(negotiation_lst))
         print()
 
     st = mean_confidence_interval(sync_lst)

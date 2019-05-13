@@ -38,6 +38,17 @@ class Node:
                     return pkt
         return None
 
+    def get_next_broadcast_packet(self):
+        for pkt in self.queue:
+            if pkt.is_eb or pkt.is_dio:
+                return pkt
+        return None
+
+    def remove_broadcast_packet(self):
+        for pkt in self.queue:
+            if pkt and (pkt.is_eb or pkt.is_dio):
+                self.queue.remove(pkt)
+
     def next_6p_packet(self):
         for pkt in self.queue:
             if pkt.is_6p:
@@ -93,7 +104,7 @@ class Node:
         if packet_6p.attempts_left >= 1:
             print_log(asn, "6P packet collided - {}".format(self.id))
             packet_6p.attempts_left -= 1
-            packet_6p.backoff_counter = randint(1,3)
+            packet_6p.backoff_counter = randint(0,2)
         else:
             print_log(asn,"6P packet dropped - {}".format(self.id))
             self.queue.remove(packet_6p)

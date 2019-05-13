@@ -24,10 +24,19 @@ class Cell:
 
 
 class Slotframe:
-    def __init__(self):
+    def __init__(self,optimized):
         self.cells = []
+        starting_index = 1
 
-        self.cells.append(Cell(0, 0, True, False))  # shared cell
-        self.cells.append(Cell(1, 0, False, True))
-        for i in range(2, SLOTFRAME_LENGTH):
-            self.cells.append(Cell(i, 0, False, False))
+        #self.cells.append(Cell(0, 0, True, False))  # shared cell
+        #self.cells.append(Cell(50, 0, True, False))  # shared cell
+
+        # if optimized:
+        #     self.cells.append(Cell(1, 0, False, True)) # eb cell
+        #     starting_index = 2
+
+        for i in range(0, SLOTFRAME_LENGTH):
+            if i == 0 or i == 50:
+                self.cells.append(Cell(i, 0, True, False))  # shared cell
+            else:
+                self.cells.append(Cell(i, 0, False, False))  # shared cell

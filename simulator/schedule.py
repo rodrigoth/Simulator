@@ -5,6 +5,7 @@
 
 SLOTFRAME_LENGTH = 101
 
+
 class Cell:
     def __init__(self, timeslot, channel, is_shared_cell, is_eb_cell):
         self.timeslot = timeslot
@@ -24,19 +25,17 @@ class Cell:
 
 
 class Slotframe:
-    def __init__(self,optimized):
+    def __init__(self, optimized):
         self.cells = []
-        starting_index = 1
 
-        #self.cells.append(Cell(0, 0, True, False))  # shared cell
-        #self.cells.append(Cell(50, 0, True, False))  # shared cell
-
-        # if optimized:
-        #     self.cells.append(Cell(1, 0, False, True)) # eb cell
-        #     starting_index = 2
+        shared_cells_indexes = [0, 50]
+        eb_cell_indexes = [1]
 
         for i in range(0, SLOTFRAME_LENGTH):
-            if i == 0 or i == 50:
+            if i in shared_cells_indexes:
                 self.cells.append(Cell(i, 0, True, False))  # shared cell
             else:
-                self.cells.append(Cell(i, 0, False, False))  # shared cell
+                if optimized and i in eb_cell_indexes:
+                    self.cells.append(Cell(i, 0, False, True))  # eb cell
+                else:
+                    self.cells.append(Cell(i, 0, False, False))  # dedicated cell

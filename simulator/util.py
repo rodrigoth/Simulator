@@ -18,14 +18,13 @@ logging.getLogger().addHandler(sh)
 
 
 def print_log(asn, text, header=False):
-    # if header:
-    #     logging.info("********************* {} *********************".format(text))
-    # else:
-    #     logging.info("({}) {}".format(asn,text))
-    # logging.info("")
-    return
+    if header:
+        logging.info("********************* {} *********************".format(text))
+    else:
+        logging.info("({}) {}".format(asn, text))
+    logging.info("")
 
 
 def rand_uuid(length=4):
-    chars='0123456789ABCDEF'
+    chars = '0123456789ABCDEF'
     return ''.join((random.choice(chars) for i in range(length)))

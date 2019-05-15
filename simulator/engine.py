@@ -3,23 +3,21 @@
 # =============================================================================
 # Created By  : Rodrigo Teles Hermeto
 
-import numpy as np
+
 from simulator.node import Node, Status6PTypes
 from simulator.schedule import Slotframe
 from simulator.util import print_log
 from random import randint
-from itertools import groupby
 from collections import defaultdict
+
 
 class Simulation:
     FIRST_EB_RANDOM_WINDOW = 600
-    FIRST_DIO_RANDOM_WINDOW = 1000
     EB_PERIOD = 1000  # in ASN
-    DIO_PERIOD = 1000
     JITTER = 200  # in ASN
     RANK_INCREASE = 256
 
-    def __init__(self, number_of_nodes,optimized=False):
+    def __init__(self, number_of_nodes, optimized=False):
         sink = Node('Sink')
         sink.rank = self.RANK_INCREASE
 
@@ -31,8 +29,10 @@ class Simulation:
     def build_topology(self):
         sink = self.nodes[0]
 
-        for node in range(self.number_of_nodes):
-            new_node = Node("Node {}".format(node))
+        index = 0
+        while self.number_of_nodes > len(self.nodes) + 1:
+            new_node = Node("Node {}".format(index))
+            index += 1
 
             if len(self.nodes) == 1:
                 new_node.rank = sink.rank + self.RANK_INCREASE
@@ -44,7 +44,7 @@ class Simulation:
 
             self.nodes.append(new_node)
 
-        joining_node = Node("Joining node",is_infrastructure=False)
+        joining_node = Node("Joining node", is_infrastructure=False)
         joining_node.is_synchronized = False
         joining_node.active_frequency = randint(11, 26)
         self.nodes.append(joining_node)
@@ -62,13 +62,14 @@ class Simulation:
                 else:
                     if asn == node.asn_next_eb_enqueue:
                         node.enqueue_eb()
-                        node.asn_next_eb_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,self.EB_PERIOD + self.JITTER)
+                        node.asn_next_eb_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,
+                                                                 self.EB_PERIOD + self.JITTER)
                     if asn == node.asn_next_dio_enqueue:
                         node.enqueue_dio()
                         node.asn_next_dio_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,
-                                                              self.EB_PERIOD + self.JITTER)
+                                                                  self.EB_PERIOD + self.JITTER)
 
-    def get_all_eb_transmitters(self,asn):
+    def get_all_eb_transmitters(self, asn):
         transmitters = []
         for node in self.nodes:
             if node.is_synchronized:
@@ -111,26 +112,26 @@ class Simulation:
     def is_collision(self, transmitters):
         return len(transmitters) > 1
 
-    def check_6P_timeout(self,asn):
+    def check_6P_timeout(self, asn):
         for node in self.nodes:
             if node.status == Status6PTypes.SENT_REQUEST:
                 if node.asn_request_timeout < asn:
                     node.status = Status6PTypes.IDLE
                     self.get_joining_node().enqueue_6p(node.parent, "6P request")
-                    print_log(asn,"Negotiation timeout - {}".format(node.id))
+                    print_log(asn, "Negotiation timeout - {}".format(node.id))
                     print_log(asn, "6P packet enqueued - {}".format(node.id))
 
-    def get_non_colliding_nodes(self,all_transmiters):
+    def get_non_colliding_nodes(self, all_transmiters):
         non_colliding = []
         dic = defaultdict(list)
 
         [dic[t.active_frequency].append(t) for t in all_transmiters]
-        for k,v in dic.items():
+        for k, v in dic.items():
             if len(v) == 1:
                 non_colliding.append(v[0])
         return non_colliding
 
-    def get_parent(self,transmitters):
+    def get_parent(self, transmitters):
         for t in transmitters:
             if t.active_frequency == self.get_joining_node().active_frequency:
                 return t
@@ -145,7 +146,7 @@ class Simulation:
                     transmitters.append(node)
         return transmitters
 
-    def execute_optimized(self):
+    def __execute_optimized(self):
         current_cell_index = 0
         asn = 1
         sync_time = 0
@@ -223,7 +224,7 @@ class Simulation:
 
             asn += 1
 
-    def execute_default(self):
+    def __execute_default(self):
         current_cell_index = 0
         asn = 1
         sync_time = 0
@@ -237,7 +238,8 @@ class Simulation:
 
             if current_cell.shared:
                 all_6p_transmitters = self.get_all_6p_transmitters()
-                all_broadcast_transmitters = [x for x in self.get_all_broadcast_transmitters() if x not in all_6p_transmitters]
+                all_broadcast_transmitters = [x for x in self.get_all_broadcast_transmitters() if
+                                              x not in all_6p_transmitters]
 
                 all_transmitters = all_6p_transmitters + all_broadcast_transmitters
 
@@ -269,7 +271,9 @@ class Simulation:
                             if pkt.is_dio:
                                 print_log(asn, "DIO transmitted - {}".format(transmitter.id))
                             else:
-                                if not self.get_joining_node().is_synchronized and self.get_joining_node().active_frequency == current_frequency:
+                                if not self.get_joining_node().is_synchronized and self.get_joining_node(
+
+                                ).active_frequency == current_frequency:
                                     print_log(asn, "Synchronized")
                                     self.get_joining_node().is_synchronized = True
                                     parent = transmitter
@@ -293,50 +297,8 @@ class Simulation:
 
     def execute(self):
         if self.optimized:
-            print_log("","Enabling optimized mode")
-            return self.execute_optimized()
+            print_log("", "Enabling optimized mode")
+            return self.__execute_optimized()
         else:
             print_log("", "Enabling default mode")
-            return self.execute_default()
-
-    def compute_broadcast_frequency_by_period(self, eb_period, sample_length=1000):
-        current_cell_index = 0
-        asn = 1
-        times = []
-        is_eb = []
-
-        while True and len(times) <= sample_length:
-            current_cell = self.slotframe.cells[current_cell_index]
-
-            if current_cell.shared:
-                transmitters = self.get_all_broadcast_transmitters()
-
-                if self.is_collision(transmitters):
-                    for node in transmitters:
-                        pkt = node.queue[0]
-                        if pkt.is_eb:
-                            is_eb.append(True)
-                        else:
-                            is_eb.append(False)
-                        node.queue.remove(pkt)
-                        times.append(asn*0.015)
-                else:
-                    if transmitters:
-                        pkt = transmitters[0].get_next_broadcast_packet()
-                        if pkt.is_eb:
-                            is_eb.append(True)
-                        else:
-                            is_eb.append(False)
-
-                        times.append(asn*0.015)
-                        transmitters[0].queue.remove(pkt)
-
-            self.check_queuing(asn)
-
-            if current_cell.is_the_last_cell():
-                current_cell_index = 0
-            else:
-                current_cell_index += 1
-
-            asn += 1
-        return [len(list(group)) for key, group in groupby([np.floor(d / eb_period) for d in times])],sum(is_eb)/len(is_eb)
+            return self.__execute_default()

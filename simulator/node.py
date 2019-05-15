@@ -6,6 +6,7 @@ from simulator.packet import Packet
 from random import randint
 from simulator.util import print_log, rand_uuid
 
+
 class Status6PTypes:
     [IDLE, SENT_REQUEST, REQUEST_RECEIVED, SENT_RESPONSE] = range(4)
 
@@ -55,7 +56,6 @@ class Node:
                 return pkt
         return None
 
-
     def next_eb_packet(self):
         for pkt in self.queue:
             if pkt.is_eb:
@@ -77,8 +77,8 @@ class Node:
             packet = Packet(self.id, "", priority=0, is_dio=True)
             self.queue.append(packet)
 
-    def enqueue_6p(self, destination,payload):
-        packet = Packet(self.id,payload, priority=1, is_6p=True)
+    def enqueue_6p(self, destination, payload):
+        packet = Packet(self.id, payload, priority=1, is_6p=True)
         packet.destination = destination
         self.queue.append(packet)
 
@@ -99,14 +99,14 @@ class Node:
     def remove_transmitted_packet(self):
         self.queue.pop(0)
 
-    def failed_6p_transmissions(self,asn):
+    def failed_6p_transmissions(self, asn):
         packet_6p = self.next_6p_packet()
         if packet_6p.attempts_left >= 1:
             print_log(asn, "6P packet collided - {}".format(self.id))
             packet_6p.attempts_left -= 1
-            packet_6p.backoff_counter = randint(0,2)
+            packet_6p.backoff_counter = randint(0, 2)
         else:
-            print_log(asn,"6P packet dropped - {}".format(self.id))
+            print_log(asn, "6P packet dropped - {}".format(self.id))
             self.queue.remove(packet_6p)
             self.status = Status6PTypes.IDLE
 
@@ -114,7 +114,7 @@ class Node:
                 self.enqueue_6p(self.parent, "6P request")
                 print_log(asn, "6P packet enqueued - {}".format(self.id))
 
-            #print_log(asn,"Failed negotiation ({})".format(self.id))
+            # print_log(asn,"Failed negotiation ({})".format(self.id))
 
     def __str__(self):
         return ', '.join(['{key}={value}'.format(key=key, value=self.__dict__.get(key)) for key in self.__dict__])

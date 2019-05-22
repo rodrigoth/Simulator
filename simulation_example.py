@@ -18,11 +18,11 @@ def mean_confidence_interval(data, confidence=0.95):
     return m, m - h, m + h
 
 
-for nei in np.arange(2, 32):
+for nei in np.arange(31, 32):
     sync_lst = []
     negotiation_lst = []
-    for i in range(2000):
-        simulation = Simulation(nei, optimized=False)
+    for i in range(1000):
+        simulation = Simulation(nei, optimized=True)
         simulation.prepare_simulation()
         sync_time, negotiation_time = simulation.execute()
         sync_lst.append(sync_time)
@@ -33,3 +33,4 @@ for nei in np.arange(2, 32):
 
     st = mean_confidence_interval(negotiation_lst)
     print(st)
+    print("")

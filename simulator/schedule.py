@@ -28,14 +28,10 @@ class Slotframe:
     def __init__(self, optimized):
         self.cells = []
 
-        shared_cells_indexes = [0, 50]
-        eb_cell_indexes = [1]
+        shared_cells_indexes = [0,50]
 
         for i in range(0, SLOTFRAME_LENGTH):
             if i in shared_cells_indexes:
                 self.cells.append(Cell(i, 0, True, False))  # shared cell
             else:
-                if optimized and i in eb_cell_indexes:
-                    self.cells.append(Cell(i, 0, False, True))  # eb cell
-                else:
-                    self.cells.append(Cell(i, 0, False, False))  # dedicated cell
+                self.cells.append(Cell(i, 0, False, False))  # dedicated cell

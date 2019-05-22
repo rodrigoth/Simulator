@@ -69,23 +69,23 @@ class Simulation:
                         node.asn_next_dio_enqueue = asn + randint(self.EB_PERIOD - self.JITTER,
                                                                   self.EB_PERIOD + self.JITTER)
 
-    def get_all_eb_transmitters(self, asn):
+    def get_all_eb_transmitters(self, all_6p_dio_transmitters):
         transmitters = []
         for node in self.nodes:
             if node.is_synchronized:
                 packet = node.next_eb_packet()
                 if packet:
-                    if self.optimized:
+                    if self.optimized and node not in all_6p_dio_transmitters:
                         node.active_frequency = randint(11,26)
                     transmitters.append(node)
         return transmitters
 
-    def get_all_dio_transmitters(self):
+    def get_all_dio_transmitters(self, all_6p_transmitters):
         transmitters = []
         for node in self.nodes:
             if node.is_synchronized and node.is_infrastructure:
                 packet = node.next_dio_packet()
-                if packet:
+                if packet and node not in all_6p_transmitters:
                     transmitters.append(node)
         return transmitters
 
@@ -109,7 +109,7 @@ class Simulation:
     def get_joining_node(self):
         return self.nodes[-1]
 
-    def is_collision(self, transmitters):
+    def multiple_transmitters(self, transmitters):
         return len(transmitters) > 1
 
     def check_6P_timeout(self, asn):
@@ -160,35 +160,22 @@ class Simulation:
 
             if current_cell.shared:
                 all_6p_transmitters = self.get_all_6p_transmitters()
-                all_eb_transmitters = [x for x in self.get_all_eb_transmitters(asn) if x not in all_6p_transmitters]
-                all_dio_transmitters = [x for x in self.get_all_dio_transmitters() if
-                                        x not in all_6p_transmitters and x not in all_eb_transmitters]
+                all_dio_transmitters = [x for x in self.get_all_dio_transmitters(all_6p_transmitters)]
+                all_eb_transmitters = [x for x in self.get_all_eb_transmitters(all_6p_transmitters+all_dio_transmitters)]
 
-                all_transmitters = all_6p_transmitters + all_dio_transmitters + all_eb_transmitters
+                eb_colliding_nodes = [t for t in all_eb_transmitters if t.active_frequency == current_frequency]
 
-                if all_transmitters:
-                    if self.is_collision(all_transmitters):
-                        [t.remove_dio_packet() for t in all_dio_transmitters]
-                        [t.failed_6p_transmissions(asn) for t in all_6p_transmitters]
-                        [t.remove_eb_packet() for t in all_eb_transmitters if t.active_frequency == current_frequency]
+                all_transmitters = all_dio_transmitters+all_6p_transmitters+eb_colliding_nodes
 
-                        non_colliding_nodes = self.get_non_colliding_nodes(all_eb_transmitters, current_frequency)
+                if self.multiple_transmitters(all_transmitters):
+                    [t.remove_dio_packet() for t in all_dio_transmitters]
+                    [t.failed_6p_transmissions(asn) for t in all_6p_transmitters]
+                    [t.remove_eb_packet() for t in eb_colliding_nodes]
+                    for c in eb_colliding_nodes:
+                        all_eb_transmitters.remove(c)
 
-                        if non_colliding_nodes:
-                            actives_frequencies = [t.active_frequency for t in non_colliding_nodes]
-                            if not self.get_joining_node().is_synchronized and self.get_joining_node().active_frequency in actives_frequencies:
-                                print_log(asn, "Synchronized")
-                                self.get_joining_node().is_synchronized = True
-                                parent = self.get_parent(non_colliding_nodes)
-                                self.get_joining_node().active_frequency = parent.active_frequency
-                                self.get_joining_node().rank = parent.rank + self.RANK_INCREASE
-                                self.get_joining_node().parent = parent
-                                self.get_joining_node().enqueue_6p(parent, "6P request")
-                                sync_time = float(asn * 15) / 1000
-                                print_log(asn, "6P packet enqueued - {}".format(self.get_joining_node().id))
-
-                            [eb_transmitter.remove_eb_packet() for eb_transmitter in non_colliding_nodes]
-                    else:
+                else:
+                    if all_transmitters:
                         transmitter = all_transmitters[0]
                         pkt = transmitter.queue[0]
                         if pkt.is_6p:
@@ -211,19 +198,26 @@ class Simulation:
                         else:
                             if pkt.is_dio:
                                 print_log(asn, "DIO transmitted - {}".format(transmitter.id))
-                            else:
-                                if not self.get_joining_node().is_synchronized and self.get_joining_node().active_frequency == current_frequency:
-                                    print_log(asn, "Synchronized")
-                                    self.get_joining_node().is_synchronized = True
-                                    parent = transmitter
-                                    self.get_joining_node().active_frequency = parent.active_frequency
-                                    self.get_joining_node().rank = parent.rank + self.RANK_INCREASE
-                                    self.get_joining_node().parent = parent
-                                    self.get_joining_node().enqueue_6p(parent, "6P request")
-                                    sync_time = float(asn * 15) / 1000
-                                    print_log(asn, "6P packet enqueued - {}".format(self.get_joining_node().id))
 
                         transmitter.queue.remove(pkt)
+
+                if all_eb_transmitters:
+                    non_colliding_nodes = self.get_non_colliding_nodes(all_eb_transmitters, current_frequency)
+                    if non_colliding_nodes:
+                        actives_frequencies = [t.active_frequency for t in non_colliding_nodes]
+                        if not self.get_joining_node().is_synchronized and self.get_joining_node().active_frequency \
+                                in actives_frequencies:
+                            print_log(asn, "Synchronized")
+                            self.get_joining_node().is_synchronized = True
+                            parent = self.get_parent(non_colliding_nodes)
+                            self.get_joining_node().active_frequency = parent.active_frequency
+                            self.get_joining_node().rank = parent.rank + self.RANK_INCREASE
+                            self.get_joining_node().parent = parent
+                            self.get_joining_node().enqueue_6p(parent, "6P request")
+                            sync_time = float(asn * 15) / 1000
+                            print_log(asn, "6P packet enqueued - {}".format(self.get_joining_node().id))
+
+                        [eb_transmitter.remove_eb_packet() for eb_transmitter in non_colliding_nodes]
 
             self.check_queuing(asn)
 
@@ -254,7 +248,7 @@ class Simulation:
                 all_transmitters = all_6p_transmitters + all_broadcast_transmitters
 
                 if all_transmitters:
-                    if self.is_collision(all_transmitters):
+                    if self.multiple_transmitters(all_transmitters):
                         [t.remove_broadcast_packet() for t in all_broadcast_transmitters]
                         [t.failed_6p_transmissions(asn) for t in all_6p_transmitters]
                     else:
